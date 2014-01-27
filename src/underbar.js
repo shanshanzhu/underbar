@@ -211,11 +211,32 @@ var _ = { };
   //     bla: "even more stuff"
   //   }); // obj1 now contains key1, key2, key3 and bla
   _.extend = function(obj) {
+    if (obj.length <= 1) {
+      return obj;
+    }
+    var toExtends = Array.prototype.slice.call(arguments, 1);
+    _.each(toExtends, function(toExtend, index){
+      _.each(toExtend, function(value, key){
+        obj[key] = value;
+      });
+    });
+    return obj;
   };
 
   // Like extend, but doesn't ever overwrite a key that already
   // exists in obj
   _.defaults = function(obj) {
+    if (obj.length <= 1) {
+      return obj;
+    }
+    var toExtends = Array.prototype.slice.call(arguments, 1);
+    _.each(toExtends, function(toExtend, index){
+      _.each(toExtend, function(value, key){
+        if (obj[key] === undefined) { obj[key] = value; }
+      });
+    });
+    return obj;
+
   };
 
 
@@ -256,6 +277,14 @@ var _ = { };
   // already computed the result for the given argument and return that value
   // instead if possible.
   _.memoize = function(func) {
+    var computed = {};
+    return function() {
+      var key = JSON.stringify(arguments);//or some hash function passed in as 2nd arg
+      if (computed[key] === undefined) {
+        computed[key] = func.apply(this, arguments);
+      }
+      return computed[key];
+    };
   };
 
   // Delays a function for the given number of milliseconds, and then calls
@@ -265,6 +294,10 @@ var _ = { };
   // parameter. For example _.delay(someFunction, 500, 'a', 'b') will
   // call someFunction('a', 'b') after 500ms
   _.delay = function(func, wait) {
+    var args = Array.prototype.slice.call(arguments, 2);
+    setTimeout(function(){
+      func.apply(this, args);
+    }, wait);
   };
 
 
@@ -275,6 +308,18 @@ var _ = { };
 
   // Shuffle an array.
   _.shuffle = function(array) {
+    //in place shuffle.
+    var getRand = function(start,end) {
+      if (end < start) { return 0; }
+      return  Math.floor(Math.random() * (end-start)) + start;
+    }
+    for (var i = 0, len = array.length; i < len; i++) {
+      var j = getRand(i,len);
+      array[i] = [array[j], array[j] = array[i]][0];//swap
+    };
+    return array.slice();
+    // to nochanging input shuffle, slice an array and do inplace;
+
   };
 
 
@@ -289,6 +334,88 @@ var _ = { };
   // of that string. For example, _.sortBy(people, 'name') should sort
   // an array of people by their name.
   _.sortBy = function(collection, iterator) {
+    
+    var newIterator;
+    if (typeof iterator === 'string') {
+      newIterator = function(obj) {
+        return obj[iterator];
+      }
+    } else if (typeof iterator === 'function') {
+      newIterator = iterator;
+    } else {
+      newIterator = function(a) {
+        return a;
+      };
+    }
+    //bubble sort 
+    /*
+    var newCollection = collection.slice();
+    for (var i = 0; i < newCollection.length; i ++) {
+      for(var j = 0; j < newCollection.length - 1 - i; j ++) {
+        var left = newIterator.call(this, newCollection[j]);  
+        var right = newIterator.call(this, newCollection[j+1]);
+        if (left > right || left === undefined) {
+          if (right !== undefined){
+            newCollection[j] = [newCollection[j+1], newCollection[j+1]= newCollection[j]][0]
+            //swap
+          }
+        }
+      }
+    }
+    return newCollection;
+    */
+
+    //merge sort: here I use slice in mergesort so it creats nLogN + n space complexity
+    //if I use index in mergesort function, I can save nLogN and only use n space complexity.
+    //how can I add gater(infinity) for iterator function.
+    var merge = function(left, right) {
+      var res = [];
+      while(left.length > 0 && right.length > 0) {
+        var leftC = newIterator.call(this, left[0]);  
+        var rightC = newIterator.call(this, right[0]);  
+        if (leftC <= rightC || rightC === undefined) {
+          res.push(left.shift());
+        } else {
+          res.push(right.shift());
+        }
+      }
+      while(left.length > 0) {res.push(left.shift());}
+      while(right.length > 0) {res.push(right.shift());}
+
+      return res;
+
+    };
+    var mergeSort = function(newArray) {
+      if (newArray.length <= 1) {
+        return newArray;
+      }
+      var mid = Math.floor(newArray.length/2);
+      var left = newArray.slice(0, mid);
+      var right = newArray.slice(mid, newArray.length);
+      return merge(mergeSort(left), mergeSort(right));
+    };
+
+    return mergeSort(collection);
+    /*
+    //native sort --wrong answer 
+    newCollection.sort(function(left, right) {
+        var leftC = newIterator.call(this, left);  
+        var rightC = newIterator.call(this, right);
+        debugger;
+        if (leftC !== rightC){
+          if (leftC < rightC || rightC === undefined) {
+            return -1;
+          }
+          if (leftC > rightC || leftC === undefined) {
+            return 1;
+          }
+        }
+          return 0;//still not working !!
+    })
+    */
+
+
+//the sort function use randomized sort and see underscorejs for raw code of sortby;
   };
 
   // Zip together two or more arrays with elements of the same index
@@ -297,23 +424,65 @@ var _ = { };
   // Example:
   // _.zip(['a','b','c','d'], [1,2,3]) returns [['a',1], ['b',2], ['c',3], ['d',undefined]]
   _.zip = function() {
+    var output = [];
+    var args = Array.prototype.slice.call(arguments);
+    var max = args[0].length;
+    for (var i = 0; i < max; i++) {
+      output[i] = output[i] || [];
+      for (var j = 0; j < args.length; j ++) {
+        max = args[j].length > max ? args[j].length : max;
+        output[i].push(args[j][i]);
+      }
+    };
+    return output;
   };
 
   // Takes a multidimensional array and converts it to a one-dimensional array.
   // The new array should contain all elements of the multidimensional array.
   //
   // Hint: Use Array.isArray to check if something is an array
-  _.flatten = function(nestedArray, result) {
+  _.flatten = function(nestedArray) {
+    var output = [];
+    var goDeep = function(toFlat) {
+      if(!Array.isArray(toFlat)) {
+        output.push(toFlat);
+      } else {
+        toFlat.forEach(function(item){
+          goDeep(item);
+        })
+      }
+    };
+    goDeep(nestedArray);
+    return output;
   };
 
   // Takes an arbitrary number of arrays and produces an array that contains
   // every item shared between all the passed-in arrays.
   _.intersection = function() {
+    var args = Array.prototype.slice.call(arguments);
+    var len = args.length;
+    var storage = {};
+    _.each(args, function(arg,i){
+      if (!Array.isArray(arg)) { return; }
+      _.each(arg, function(item){
+        storage[item] = storage[item] === undefined ? {}: storage[item];
+        storage[item][i] = true;
+      });
+    });
+    var output = [];
+    _.each(storage, function(value, key){
+      if (Object.keys(value).length === len) {
+        output.push(key);
+      };
+    });
+    return output;
+ 
   };
 
   // Take the difference between one array and a number of other arrays.
   // Only the elements present in just the first array will remain.
   _.difference = function(array) {
+
   };
 
 
